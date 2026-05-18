@@ -271,6 +271,10 @@ export function buildRelatrPluginEvent(
   options: BuildRelatrArtifactOptions = {},
 ): RelatrPluginEvent {
   const baseEvent = options.event;
+  const createdAt =
+    options.createdAt ??
+    (options.keepCreatedAt ? baseEvent?.created_at : undefined) ??
+    Math.floor(Date.now() / 1000);
   const source = normalizeContent(
     options.source ?? baseEvent?.content ?? scaffoldRelatrPluginSource(),
   );
@@ -286,17 +290,14 @@ export function buildRelatrPluginEvent(
   return canonicalizeRelatrPluginEvent({
     kind: RELATR_PLUGIN_KIND,
     pubkey: options.pubkey ?? baseEvent?.pubkey ?? ZERO_PUBKEY,
-    created_at:
-      options.createdAt ??
-      (options.keepCreatedAt ? baseEvent?.created_at : undefined) ??
-      Math.floor(Date.now() / 1000),
+    created_at: createdAt,
     tags: [
       ...buildRelatrManifestTags(mergedManifest),
       ...extraTags.map((tag) => [...tag]),
     ],
     content: source,
-    id: baseEvent?.id,
-    sig: baseEvent?.sig,
+    id: createdAt === baseEvent?.created_at ? baseEvent?.id : undefined,
+    sig: createdAt === baseEvent?.created_at ? baseEvent?.sig : undefined,
   });
 }
 

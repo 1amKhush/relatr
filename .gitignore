@@ -35,4 +35,5 @@ report.[0-9]_.[0-9]_.[0-9]_.[0-9]_.json
 relatr.db
 introducing*
 data
+plugins/elo
 # docs

@@ -12,7 +12,7 @@ export interface SearchResult {
   isExactMatch: boolean;
 }
 
-const STABLE_SEARCH_CANDIDATE_LIMIT = 100;
+const STABLE_SEARCH_CANDIDATE_LIMIT = 400;
 
 const SEARCH_TEXT_SCORES = {
   nameExact: 1.4,
@@ -237,6 +237,11 @@ export class MetadataRepository {
     try {
       return await executeWithRetry(async () => {
         const staleThreshold = nowSeconds() - this.ttlSeconds;
+        const normalizedQuery = query.trim().replace(/\s+/g, " ");
+        if (!normalizedQuery) {
+          return [];
+        }
+
         // Use a stable candidate window so final ranking stays consistent
         // regardless of the requested output limit.
         const candidateLimit = Math.max(limit, STABLE_SEARCH_CANDIDATE_LIMIT);
@@ -262,9 +267,9 @@ export class MetadataRepository {
 
         const distanceScoreCase = `
           CASE
-            WHEN d.distance <= 1 THEN 1.0
-            WHEN d.distance = 1000 THEN 0.0
-            ELSE exp(-$3 * d.distance)
+            WHEN COALESCE(d.distance, 1000) <= 1 THEN 1.0
+            WHEN COALESCE(d.distance, 1000) = 1000 THEN 0.0
+            ELSE exp(-$3 * COALESCE(d.distance, 1000))
           END
         `;
 
@@ -288,7 +293,7 @@ export class MetadataRepository {
             END AS is_exact_match,
             -- Social distance score (exponential decay matching TrustCalculator)
             ${distanceScoreCase} AS distance_score,
-            d.distance,
+            COALESCE(d.distance, 1000) AS distance,
             -- Validation score (average of all metrics for this pubkey)
             COALESCE(v.avg_validation, 0.5) AS validation_score,
             v.validation_count,
@@ -328,10 +333,15 @@ export class MetadataRepository {
           validation_count
         FROM ranked_matches
         WHERE text_score > 0  -- Only return actual matches
-        ORDER BY pre_rank_score DESC, text_score DESC, distance ASC
+        ORDER BY is_exact_match DESC, text_score DESC, pre_rank_score DESC, distance ASC
         LIMIT $2
         `,
-          { 1: query, 2: candidateLimit, 3: decayFactor, 4: staleThreshold },
+          {
+            1: normalizedQuery,
+            2: candidateLimit,
+            3: decayFactor,
+            4: staleThreshold,
+          },
         );
 
         const rows = await result.getRows();

@@ -33,6 +33,9 @@ CREATE TABLE IF NOT EXISTS pubkey_metadata (
     created_at INTEGER NOT NULL
 );
 
+CREATE INDEX IF NOT EXISTS idx_pubkey_metadata_created_at
+    ON pubkey_metadata(created_at);
+
 -- Table 3: Settings
 CREATE TABLE IF NOT EXISTS settings (
     key VARCHAR PRIMARY KEY,

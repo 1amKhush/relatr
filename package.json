@@ -1,7 +1,7 @@
 {
   "name": "relatr",
   "description": "Decentralized trust metric service for the Nostr ecosystem that computes personalized trust scores from the unique perspective of a public key",
-  "version": "0.2.8",
+  "version": "0.2.9",
   "type": "module",
   "private": true,
   "workspaces": [
@@ -36,9 +36,9 @@
   },
   "dependencies": {
     "@contextvm/elo": "^0.10.4",
-    "@contextvm/sdk": "^0.8.0",
+    "@contextvm/sdk": "^0.11",
     "@modelcontextprotocol/sdk": "^1.29.0",
-    "@duckdb/node-api": "^1.4.4-r.3",
+    "@duckdb/node-api": "^1.5.2-r.1",
     "applesauce-core": "^5.2.0",
     "applesauce-relay": "^5.2.0",
     "json-canonicalize": "^2.0.0",
@@ -53,10 +53,10 @@
     "zod": "^4.3.6"
   },
   "optionalDependencies": {
-    "@duckdb/node-bindings-linux-x64": "^1.4.4-r.3",
-    "@duckdb/node-bindings-linux-arm64": "^1.4.4-r.3",
-    "@duckdb/node-bindings-darwin-x64": "^1.4.4-r.3",
-    "@duckdb/node-bindings-darwin-arm64": "^1.4.4-r.3",
-    "@duckdb/node-bindings-win32-x64": "^1.4.4-r.3"
+    "@duckdb/node-bindings-linux-x64": "^1.5.2-r.1",
+    "@duckdb/node-bindings-linux-arm64": "^1.5.2-r.1",
+    "@duckdb/node-bindings-darwin-x64": "^1.5.2-r.1",
+    "@duckdb/node-bindings-darwin-arm64": "^1.5.2-r.1",
+    "@duckdb/node-bindings-win32-x64": "^1.5.2-r.1"
   }
 }

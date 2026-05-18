@@ -469,6 +469,16 @@ function manifestFromArgs(args: ParsedArgs): Partial<RelatrManifest> {
   return manifest;
 }
 
+function hasManifestOverrides(args: ParsedArgs): boolean {
+  return (
+    getLastFlagValue(args, "name") !== undefined ||
+    getLastFlagValue(args, "title") !== undefined ||
+    getLastFlagValue(args, "description") !== undefined ||
+    getLastFlagValue(args, "relatr-version") !== undefined ||
+    getLastFlagValue(args, "weight") !== undefined
+  );
+}
+
 function reportJson(report: JsonReport, runtime: CliRuntime): never {
   runtime.stdout.write(`${JSON.stringify(report, null, 2)}\n`);
   runtime.exit(report.ok ? 0 : 1);
@@ -615,6 +625,11 @@ async function publishCommand(
   const relays = getAllFlagValues(args, "relay");
   const manifest = manifestFromArgs(args);
   const keepCreatedAt = shouldKeepCreatedAt(args);
+  const secret = getLastFlagValue(args, "sec");
+  const bunker =
+    getLastFlagValue(args, "bunker") ?? getLastFlagValue(args, "remote");
+  const hasSigningMethod = Boolean(secret || bunker);
+  const hasOverrides = hasManifestOverrides(args) || keepCreatedAt;
 
   if (relays.length === 0) {
     failWithUsage(
@@ -635,20 +650,39 @@ async function publishCommand(
   }
 
   const input = classifyRelatrArtifactInput(rawInput);
-  let event =
-    input.kind === "event"
-      ? buildRelatrPluginEvent({ event: input.event, manifest, keepCreatedAt })
-      : buildRelatrPluginEvent({
-          source: input.source,
-          manifest,
-          keepCreatedAt,
-        });
+  let event: RelatrPluginEvent;
+
+  if (input.kind === "event") {
+    if (isSignedRelatrPluginEvent(input.event) && !hasSigningMethod) {
+      if (hasOverrides) {
+        failWithUsage(
+          "publish",
+          "Cannot modify a signed event during publish without --sec or --bunker",
+          json,
+          runtime,
+          [
+            "Remove manifest or rebuild flags to publish the event unchanged, or provide --sec/--bunker to re-sign the modified event.",
+          ],
+        );
+      }
+
+      event = input.event;
+    } else {
+      event = buildRelatrPluginEvent({
+        event: input.event,
+        manifest,
+        keepCreatedAt,
+      });
+    }
+  } else {
+    event = buildRelatrPluginEvent({
+      source: input.source,
+      manifest,
+      keepCreatedAt,
+    });
+  }
 
   if (!event.id || !event.sig) {
-    const secret = getLastFlagValue(args, "sec");
-    const bunker =
-      getLastFlagValue(args, "bunker") ?? getLastFlagValue(args, "remote");
-
     if (!secret && !bunker) {
       failWithUsage(
         "publish",

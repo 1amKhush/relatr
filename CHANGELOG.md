@@ -1,5 +1,22 @@
 # relatr
 
+## 0.2.9
+
+### Patch Changes
+
+- feat(search): implement blended trust and text relevance ranking
+  - Add query and limit normalization in SearchService
+  - Implement candidate deduplication by pubkey
+  - Change ranking from trust-only to weighted blend of trust (75%) and text relevance (25%)
+  - Add exact-match boost (0.1) to ranking score
+  - Update MetadataRepository with increased candidate limit (400), null-safe distance handling, and exact-match-first ordering
+  - Add index on pubkey_metadata(created_at) for improved query performance
+  - Update SDK dependency to v0.11 with common tool schemas
+  - Update DuckDB dependencies to v1.5.2-r.1
+  - Add signed event protection in publish command to prevent modification without re-signing
+
+  BREAKING CHANGE: Search ranking now blends trust and text relevance scores, which may change result ordering from previous versions
+
 ## 0.2.8
 
 ### Patch Changes

@@ -1,5 +1,9 @@
 import { validateAndDecodePubkey } from "@/utils/utils.nostr.js";
-import { NostrServerTransport, PrivateKeySigner } from "@contextvm/sdk";
+import {
+  NostrServerTransport,
+  PrivateKeySigner,
+  withCommonToolSchemas,
+} from "@contextvm/sdk";
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
 import { loadConfig } from "../config.js";
@@ -88,19 +92,29 @@ export async function startMCPServer(): Promise<void> {
 
     // Start server
     // const transport = new StdioServerTransport();
-    const transport = new NostrServerTransport({
-      signer: new PrivateKeySigner(config.serverSecretKey),
-      relayHandler: config.serverRelays,
-      injectClientPubkey: true,
-      isPublicServer: config.isPublicServer,
-      oversizedTransfer: { enabled: false },
-      serverInfo: {
-        name: config.serverName,
-        about: config.serverAbout,
-        website: config.serverWebsite,
-        picture: config.serverPicture,
+    const transport = withCommonToolSchemas(
+      new NostrServerTransport({
+        signer: new PrivateKeySigner(config.serverSecretKey),
+        relayHandler: config.serverRelays,
+        injectClientPubkey: true,
+        isPublicServer: config.isPublicServer,
+        oversizedTransfer: { enabled: false },
+        serverInfo: {
+          name: config.serverName,
+          about: config.serverAbout,
+          website: config.serverWebsite,
+          picture: config.serverPicture,
+        },
+      }),
+      {
+        tools: [
+          { name: "calculate_trust_score" },
+          { name: "calculate_trust_scores" },
+          { name: "stats" },
+          { name: "search_profiles" },
+        ],
       },
-    });
+    );
     await server.connect(transport);
 
     logger.info(

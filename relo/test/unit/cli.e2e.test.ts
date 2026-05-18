@@ -281,6 +281,132 @@ describe("relo cli end-to-end", () => {
     expect(typeof parsed.event?.sig).toBe("string");
   });
 
+  it("publishes an already-signed artifact in dry-run mode without keep-created-at", async () => {
+    const secretHex =
+      "6ea5d90dbc699920dc587424f3403acfb239f35e63efd67eee62ac56caf784bd";
+    const signed = await runCli(
+      [
+        "build",
+        "--name",
+        "activity_notes",
+        "--relatr-version",
+        "^0.1.16",
+        "--sec",
+        secretHex,
+      ],
+      {
+        stdin: "plan\n  value = 0\nin\nvalue\n",
+      },
+    );
+
+    expect(signed.exitCode).toBe(0);
+
+    const result = await runCli(
+      [
+        "publish",
+        "--relay",
+        "wss://relay.example",
+        "--dry-run",
+        "--json",
+      ],
+      {
+        stdin: signed.stdout,
+      },
+    );
+
+    expect(result.exitCode).toBe(0);
+    expect(result.stderr).toBe("");
+
+    const parsed = JSON.parse(result.stdout) as {
+      ok: boolean;
+      event?: { id?: string; sig?: string };
+      publish?: { dryRun: boolean; relays: string[]; eventId?: string };
+    };
+
+    expect(parsed.ok).toBe(true);
+    expect(parsed.publish).toEqual({
+      dryRun: true,
+      relays: ["wss://relay.example"],
+      eventId: parsed.event?.id,
+    });
+    expect(typeof parsed.event?.id).toBe("string");
+    expect(typeof parsed.event?.sig).toBe("string");
+  });
+
+  it("publishes a signed event unchanged when no signing or override flags are provided", async () => {
+    const secretHex =
+      "6ea5d90dbc699920dc587424f3403acfb239f35e63efd67eee62ac56caf784bd";
+    const signed = await runCli([
+      "build",
+      "test-plugins/activity_notes.json",
+      "--sec",
+      secretHex,
+    ]);
+
+    expect(signed.exitCode).toBe(0);
+
+    const original = JSON.parse(signed.stdout) as {
+      id: string;
+      sig: string;
+      created_at: number;
+      tags: string[][];
+    };
+
+    const result = await runCli(
+      ["publish", "--relay", "wss://relay.example", "--dry-run", "--json"],
+      {
+        stdin: signed.stdout,
+      },
+    );
+
+    expect(result.exitCode).toBe(0);
+
+    const parsed = JSON.parse(result.stdout) as {
+      ok: boolean;
+      event?: {
+        id?: string;
+        sig?: string;
+        created_at?: number;
+        tags?: string[][];
+      };
+    };
+
+    expect(parsed.ok).toBe(true);
+    expect(parsed.event).toEqual(original);
+  });
+
+  it("rejects modifying a signed event during publish without re-signing", async () => {
+    const secretHex =
+      "6ea5d90dbc699920dc587424f3403acfb239f35e63efd67eee62ac56caf784bd";
+    const signed = await runCli([
+      "build",
+      "test-plugins/activity_notes.json",
+      "--sec",
+      secretHex,
+    ]);
+
+    expect(signed.exitCode).toBe(0);
+
+    const result = await runCli(
+      [
+        "publish",
+        "--relay",
+        "wss://relay.example",
+        "--title",
+        "Changed title",
+        "--dry-run",
+      ],
+      {
+        stdin: signed.stdout,
+      },
+    );
+
+    expect(result.exitCode).toBe(1);
+    expect(result.stderr).toContain(
+      "Cannot modify a signed event during publish without --sec or --bunker",
+    );
+  });
+
   it("fails publish when every relay rejects the event", async () => {
     const result = await runCli(
       [

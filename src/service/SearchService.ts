@@ -32,7 +32,10 @@ type RankedSearchCandidate = {
 };
 
 export class SearchService implements ISearchService {
-  private static readonly EXACT_MATCH_BOOST = 1.05;
+  private static readonly MAX_TEXT_RELEVANCE_SCORE = 1.4;
+  private static readonly TRUST_RANKING_WEIGHT = 0.75;
+  private static readonly TEXT_RANKING_WEIGHT = 0.25;
+  private static readonly EXACT_MATCH_RANKING_BOOST = 0.1;
 
   constructor(
     private config: RelatrConfig,
@@ -47,8 +50,10 @@ export class SearchService implements ISearchService {
     params: SearchProfilesParams,
   ): Promise<SearchProfilesResult> {
     const { query, limit = 5, sourcePubkey, extendToNostr } = params;
+    const normalizedQuery = this.normalizeSearchQuery(query);
+    const normalizedLimit = this.normalizeSearchLimit(limit);
 
-    if (!query || typeof query !== "string") {
+    if (!normalizedQuery) {
       throw new ValidationError("Invalid search query", "query");
     }
 
@@ -58,15 +63,16 @@ export class SearchService implements ISearchService {
       this.config.defaultSourcePubkey;
     const startTime = nowMs();
 
-    // Search local database - returns top N results ranked by text relevance + root distance
+    // Search local database - DuckDB scans all fresh metadata matches and returns
+    // a broad candidate window ranked primarily by text relevance.
     const localResults = await this.metadataRepository.search(
-      query,
-      limit,
+      normalizedQuery,
+      normalizedLimit,
       this.config.decayFactor,
     );
 
     logger.debug(
-      `🔍 Found ${localResults.length} distance-ranked profiles from database`,
+      `🔍 Found ${localResults.length} text-ranked profiles from database`,
     );
 
     // Prepare profiles for trust scoring
@@ -78,8 +84,8 @@ export class SearchService implements ISearchService {
 
     // Extend to Nostr if needed
     const nostrProfiles = await this.extendSearchWithNostr(
-      query,
-      limit,
+      normalizedQuery,
+      normalizedLimit,
       profilesForScoring,
       extendToNostr,
     );
@@ -88,9 +94,25 @@ export class SearchService implements ISearchService {
     return this.processSearchResults(
       [...profilesForScoring, ...nostrProfiles],
       effectiveSourcePubkey,
-      limit,
+      normalizedLimit,
       startTime,
     );
+  }
+
+  private normalizeSearchQuery(query: unknown): string {
+    if (typeof query !== "string") {
+      return "";
+    }
+
+    return query.trim().replace(/\s+/g, " ");
+  }
+
+  private normalizeSearchLimit(limit: number): number {
+    if (!Number.isFinite(limit)) {
+      return 5;
+    }
+
+    return Math.max(1, Math.floor(limit));
   }
 
   /**
@@ -143,7 +165,12 @@ export class SearchService implements ISearchService {
 
       for (const event of nostrEvents) {
         if (!seenPubkeys.has(event.pubkey)) {
-          const profile = JSON.parse(event.content);
+          const parsedProfile: unknown = JSON.parse(event.content);
+          if (!parsedProfile || typeof parsedProfile !== "object") {
+            continue;
+          }
+
+          const profile = parsedProfile as NostrProfile;
           const { multiplier, isExactMatch } =
             this.calculateRelevanceMultiplier(profile, query);
           nostrProfiles.push({
@@ -153,7 +180,7 @@ export class SearchService implements ISearchService {
           });
           seenPubkeys.add(event.pubkey);
           this.metadataRepository
-            .save({ pubkey: event.pubkey, ...profile })
+            .save({ ...profile, pubkey: event.pubkey })
             .catch((err) => {
               logger.warn(`Failed to cache profile for ${event.pubkey}:`, err);
             });
@@ -178,8 +205,9 @@ export class SearchService implements ISearchService {
     limit: number,
     startTime: number,
   ): Promise<SearchProfilesResult> {
+    const dedupedProfiles = this.dedupeSearchCandidates(finalProfiles);
     const profilesWithScores = await this.calculateProfileScores(
-      finalProfiles,
+      dedupedProfiles,
       effectiveSourcePubkey,
     );
 
@@ -210,6 +238,25 @@ export class SearchService implements ISearchService {
       totalFound: results.length,
       searchTimeMs: endTime - startTime,
     };
+  }
+
+  private dedupeSearchCandidates(
+    candidates: SearchCandidate[],
+  ): SearchCandidate[] {
+    const byPubkey = new Map<string, SearchCandidate>();
+
+    for (const candidate of candidates) {
+      const existing = byPubkey.get(candidate.pubkey);
+      if (
+        !existing ||
+        Number(candidate.isExactMatch) > Number(existing.isExactMatch) ||
+        candidate.relevanceMultiplier > existing.relevanceMultiplier
+      ) {
+        byPubkey.set(candidate.pubkey, candidate);
+      }
+    }
+
+    return [...byPubkey.values()];
   }
 
   async calculateProfileScores(
@@ -258,15 +305,20 @@ export class SearchService implements ISearchService {
               distance,
             );
 
-            let rankingMultiplier = 1;
-            if (isExactMatch) {
-              rankingMultiplier = SearchService.EXACT_MATCH_BOOST;
-            }
-
             const roundedTrustScore = Number(
               Math.max(0, Math.min(1, trustScore.score)).toFixed(2),
             );
-            const rankingScore = trustScore.score * rankingMultiplier;
+            const normalizedTextScore = Math.max(
+              0,
+              Math.min(
+                1,
+                relevanceMultiplier / SearchService.MAX_TEXT_RELEVANCE_SCORE,
+              ),
+            );
+            const rankingScore =
+              SearchService.TRUST_RANKING_WEIGHT * trustScore.score +
+              SearchService.TEXT_RANKING_WEIGHT * normalizedTextScore +
+              (isExactMatch ? SearchService.EXACT_MATCH_RANKING_BOOST : 0);
 
             return {
               pubkey,
@@ -322,7 +374,7 @@ export class SearchService implements ISearchService {
     profile: NostrProfile,
     query: string,
   ): { multiplier: number; isExactMatch: boolean } {
-    const queryLower = query.toLowerCase();
+    const queryLower = this.normalizeSearchQuery(query).toLowerCase();
     let isExactMatch = false;
 
     for (const field of ["name", "display_name", "nip05", "lud16"] as const) {

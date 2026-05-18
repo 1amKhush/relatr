@@ -197,7 +197,7 @@ describe("SearchService final score calculation", () => {
         trustScore: 0.8,
         exactMatch: false,
         rawTrustScore: 0.8,
-        rankingScore: 0.8,
+        rankingScore: 0.7964285714285715,
         relevanceMultiplier: 1.1,
       },
       {
@@ -205,13 +205,13 @@ describe("SearchService final score calculation", () => {
         trustScore: 0.6,
         exactMatch: false,
         rawTrustScore: 0.6,
-        rankingScore: 0.6,
+        rankingScore: 0.6464285714285714,
         relevanceMultiplier: 1.1,
       },
     ]);
   });
 
-  test("applies the reduced exact-match boost only for ranking", async () => {
+  test("blends trust, text relevance, and exact-match boost only for ranking", async () => {
     const service = createService({
       trustCalculator: {
         calculate: (_source: string, target: string) =>
@@ -235,7 +235,7 @@ describe("SearchService final score calculation", () => {
       trustScore: 0.5,
       exactMatch: true,
       rawTrustScore: 0.5,
-      rankingScore: 0.525,
+      rankingScore: 0.6892857142857143,
       relevanceMultiplier: 1.2,
     });
   });
@@ -270,7 +270,7 @@ describe("SearchService final score calculation", () => {
         trustScore: 0.74,
         exactMatch: false,
         rawTrustScore: 0.74,
-        rankingScore: 0.74,
+        rankingScore: 0.8049999999999999,
         relevanceMultiplier: 1.4,
       },
       {
@@ -278,13 +278,13 @@ describe("SearchService final score calculation", () => {
         trustScore: 0.81,
         exactMatch: false,
         rawTrustScore: 0.81,
-        rankingScore: 0.81,
+        rankingScore: 0.7860714285714286,
         relevanceMultiplier: 1,
       },
     ]);
   });
 
-  test("searchProfiles ranks higher-trust non-exact matches ahead of lower-trust ones", async () => {
+  test("searchProfiles can rank stronger text matches ahead of modestly higher-trust non-exact matches", async () => {
     const service = createService({
       metadataRepository: {
         search: async () => [
@@ -316,14 +316,14 @@ describe("SearchService final score calculation", () => {
 
     expect(result.results).toEqual([
       {
-        pubkey: "pk-high-trust",
-        trustScore: 0.81,
+        pubkey: "pk-lower-trust",
+        trustScore: 0.74,
         rank: 1,
         exactMatch: false,
       },
       {
-        pubkey: "pk-lower-trust",
-        trustScore: 0.74,
+        pubkey: "pk-high-trust",
+        trustScore: 0.81,
         rank: 2,
         exactMatch: false,
       },

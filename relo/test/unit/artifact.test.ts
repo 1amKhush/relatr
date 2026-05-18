@@ -137,11 +137,15 @@ describe("relo artifact helpers", () => {
           ["relatr-version", "^0.1.16"],
         ],
         content: "plan\n  value = 0\nin\nvalue\n",
+        id: "old-id",
+        sig: "old-sig",
       },
       createdAt: 1760000001,
     });
 
     expect(event.created_at).toBe(1760000001);
+    expect(event.id).toBeUndefined();
+    expect(event.sig).toBeUndefined();
   });
 
   it("preserves created_at when keepCreatedAt is enabled", () => {
@@ -155,11 +159,15 @@ describe("relo artifact helpers", () => {
           ["relatr-version", "^0.1.16"],
         ],
         content: "plan\n  value = 0\nin\nvalue\n",
+        id: "old-id",
+        sig: "old-sig",
       },
       keepCreatedAt: true,
     });
 
     expect(event.created_at).toBe(1760000000);
+    expect(event.id).toBe("old-id");
+    expect(event.sig).toBe("old-sig");
   });
 
   it("reports manifest validation issues", () => {
