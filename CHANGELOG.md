@@ -1,5 +1,15 @@
 # relatr
 
+## 0.2.10
+
+### Patch Changes
+
+- feat(mcp): add search_profiles tool and update SDK dependency
+  - Add search_profiles tool to MCP server
+  - Remove stats tool from MCP server
+  - Add WoT categories for tool classification
+  - Update @contextvm/sdk from ^0.11 to ^0.11.11 for search functionality
+
 ## 0.2.9
 
 ### Patch Changes

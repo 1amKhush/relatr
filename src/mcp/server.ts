@@ -110,8 +110,15 @@ export async function startMCPServer(): Promise<void> {
         tools: [
           { name: "calculate_trust_score" },
           { name: "calculate_trust_scores" },
-          { name: "stats" },
           { name: "search_profiles" },
+        ],
+        categories: [
+          "WoT",
+          "wot",
+          "Web-of-Trust",
+          "user-search",
+          "social-graph",
+          "trust-score",
         ],
       },
     );
