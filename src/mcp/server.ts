@@ -56,7 +56,7 @@ export async function startMCPServer(): Promise<void> {
     // Create MCP server
     server = new McpServer({
       name: "relatr",
-      version: "1.0.0",
+      version: HOST_VERSION,
     });
 
     // Register tools with rate limiter

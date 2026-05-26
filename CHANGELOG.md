@@ -1,5 +1,11 @@
 # relatr
 
+## 0.2.11
+
+### Patch Changes
+
+- refactor(mcp): use HOST_VERSION variable for server version
+
 ## 0.2.10
 
 ### Patch Changes
